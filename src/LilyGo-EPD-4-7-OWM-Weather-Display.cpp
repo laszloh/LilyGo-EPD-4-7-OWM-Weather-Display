@@ -150,9 +150,9 @@ void BeginSleep() {
     UpdateLocalTime();
     SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)) + Delta;
     esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL);
-    Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
-    Serial.println("Entering " + String(SleepTimer) + " (secs) of sleep time");
-    Serial.println("Starting deep-sleep period...");
+    log_d("Awake for : %d ms", millis() - StartTime);
+    log_d("Entering %d (secs) of sleep time", SleepTimer);
+    log_i("Starting deep-sleep period...");
     esp_deep_sleep_start();
 }
 
@@ -165,7 +165,7 @@ boolean SetupTime() {
 }
 
 uint8_t StartWiFi() {
-    Serial.println("\r\nConnecting to: " + String(ssid));
+    log_i("Connecting to: %s", ssid);
     IPAddress dns(8, 8, 8, 8);
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
@@ -173,35 +173,33 @@ uint8_t StartWiFi() {
     WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, password);
     if(WiFi.waitForConnectResult() != WL_CONNECTED) {
-        Serial.printf("STA: Failed!\n");
+        log_e("STA: Failed!");
         WiFi.disconnect(false);
         delay(500);
         WiFi.begin(ssid, password);
     }
     if(WiFi.status() == WL_CONNECTED) {
         wifi_signal = WiFi.RSSI();
-        Serial.println("WiFi connected at: " + WiFi.localIP().toString());
+        log_i("WiFi connected at: %s", WiFi.localIP().toString().c_str());
     } else
-        Serial.println("WiFi connection *** FAILED ***");
+        log_e("WiFi connection *** FAILED ***");
     return WiFi.status();
 }
 
 void StopWiFi() {
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
-    Serial.println("WiFi switched Off");
+    log_i("WiFi switched Off");
 }
 
 void InitialiseSystem() {
     StartTime = millis();
     Serial.begin(115200);
-    while(!Serial)
-        ;
-    Serial.println(String(__FILE__) + "\nStarting...");
+    log_i("Starting...");
     epd_init();
     framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
     if(!framebuffer)
-        Serial.println("Memory alloc failed!");
+        log_e("Memory alloc failed!");
     memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 }
 
@@ -227,7 +225,7 @@ void setup() {
                     RxForecast = obtainWeatherData(client, "forecast");
                 Attempts++;
             }
-            Serial.println("Received all weather data...");
+            log_i("Received all weather data...");
             if(RxWeather && RxForecast) {
                 StopWiFi();
                 epd_poweron();
@@ -248,17 +246,16 @@ void Convert_Readings_to_Imperial() {
 }
 
 bool DecodeWeather(WiFiClient &json, String Type) {
-    Serial.print(F("\nCreating object...and "));
+    log_i("Deserializing weather data");
     DynamicJsonDocument doc(64 * 1024);
     DeserializationError error = deserializeJson(doc, json);
     if(error) {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.c_str());
+        log_e("DeserializeJson() failed: %s (%d)", error.c_str(), error);
         return false;
     }
 
     JsonObject root = doc.as<JsonObject>();
-    Serial.println(" Decoding " + Type + " data");
+    log_d("Decoding %s data", Type.c_str());
     if(Type == "onecall") {
 
         WxConditions[0].High = -50;
@@ -266,60 +263,60 @@ bool DecodeWeather(WiFiClient &json, String Type) {
         WxConditions[0].FTimezone = doc["timezone_offset"];
         JsonObject current = doc["current"];
         WxConditions[0].Sunrise = current["sunrise"];
-        Serial.println("SRis: " + String(WxConditions[0].Sunrise));
+        log_d("   SRis: %d", WxConditions[0].Sunrise);
         WxConditions[0].Sunset = current["sunset"];
-        Serial.println("SSet: " + String(WxConditions[0].Sunset));
+        log_d("   SSet: %d", WxConditions[0].Sunset);
         WxConditions[0].Temperature = current["temp"];
-        Serial.println("Temp: " + String(WxConditions[0].Temperature));
+        log_d("   Temp: %.2f", WxConditions[0].Temperature);
         WxConditions[0].FeelsLike = current["feels_like"];
-        Serial.println("FLik: " + String(WxConditions[0].FeelsLike));
+        log_d("   FLik: %.2f", WxConditions[0].FeelsLike);
         WxConditions[0].Pressure = current["pressure"];
-        Serial.println("Pres: " + String(WxConditions[0].Pressure));
+        log_d("   Pres: %.2f", WxConditions[0].Pressure);
         WxConditions[0].Humidity = current["humidity"];
-        Serial.println("Humi: " + String(WxConditions[0].Humidity));
+        log_d("   Humi: %.2f", WxConditions[0].Humidity);
         WxConditions[0].DewPoint = current["dew_point"];
-        Serial.println("DPoi: " + String(WxConditions[0].DewPoint));
+        log_d("   DPoi: %.2f", WxConditions[0].DewPoint);
         WxConditions[0].UVI = current["uvi"];
-        Serial.println("UVin: " + String(WxConditions[0].UVI));
+        log_d("   UVin: %.2f", WxConditions[0].UVI);
         WxConditions[0].Cloudcover = current["clouds"];
-        Serial.println("CCov: " + String(WxConditions[0].Cloudcover));
+        log_d("   CCov: %d", WxConditions[0].Cloudcover);
         WxConditions[0].Visibility = current["visibility"];
-        Serial.println("Visi: " + String(WxConditions[0].Visibility));
+        log_d("   Visi: %d", WxConditions[0].Visibility);
         WxConditions[0].Windspeed = current["wind_speed"];
-        Serial.println("WSpd: " + String(WxConditions[0].Windspeed));
+        log_d("   WSpd: %.2f", WxConditions[0].Windspeed);
         WxConditions[0].Winddir = current["wind_deg"];
-        Serial.println("WDir: " + String(WxConditions[0].Winddir));
+        log_d("   WDir: %.2f", WxConditions[0].Winddir);
         JsonObject current_weather = current["weather"][0];
         String Description = current_weather["description"];
         String Icon = current_weather["icon"];
         WxConditions[0].Forecast0 = Description;
-        Serial.println("Fore: " + String(WxConditions[0].Forecast0));
+        log_d("   Fore: %s", WxConditions[0].Forecast0.c_str());
         WxConditions[0].Icon = Icon;
-        Serial.println("Icon: " + String(WxConditions[0].Icon));
+        log_d("   Icon: %s", WxConditions[0].Icon.c_str());
     }
     if(Type == "forecast") {
 
         Serial.print(F("\nReceiving Forecast period - "));
         JsonArray list = root["list"];
-        for(byte r = 0; r < max_readings; r++) {
-            Serial.println("\nPeriod-" + String(r) + "--------------");
+        for(auto r = 0; r < max_readings; r++) {
+            log_d("   Period-%d--------------", r);
             WxForecast[r].Dt = list[r]["dt"].as<int>();
             WxForecast[r].Temperature = list[r]["main"]["temp"].as<float>();
-            Serial.println("Temp: " + String(WxForecast[r].Temperature));
+            log_d("   Temp: %.2f", WxForecast[r].Temperature);
             WxForecast[r].Low = list[r]["main"]["temp_min"].as<float>();
-            Serial.println("TLow: " + String(WxForecast[r].Low));
+            log_d("   TLow: %.2f", WxForecast[r].Low);
             WxForecast[r].High = list[r]["main"]["temp_max"].as<float>();
-            Serial.println("THig: " + String(WxForecast[r].High));
+            log_d("   THig: %.2f", WxForecast[r].High);
             WxForecast[r].Pressure = list[r]["main"]["pressure"].as<float>();
-            Serial.println("Pres: " + String(WxForecast[r].Pressure));
+            log_d("   Pres: %.2f", WxForecast[r].Pressure);
             WxForecast[r].Humidity = list[r]["main"]["humidity"].as<float>();
-            Serial.println("Humi: " + String(WxForecast[r].Humidity));
+            log_d("   Humi: %.2f", WxForecast[r].Humidity);
             WxForecast[r].Icon = list[r]["weather"][0]["icon"].as<const char *>();
-            Serial.println("Icon: " + String(WxForecast[r].Icon));
+            log_d("   Icon: %s", WxForecast[r].Icon.c_str());
             WxForecast[r].Rainfall = list[r]["rain"]["3h"].as<float>();
-            Serial.println("Rain: " + String(WxForecast[r].Rainfall));
+            log_d("   Rain: %.2f", WxForecast[r].Rainfall);
             WxForecast[r].Snowfall = list[r]["snow"]["3h"].as<float>();
-            Serial.println("Snow: " + String(WxForecast[r].Snowfall));
+            log_d("   Snow: %.2f", WxForecast[r].Snowfall);
             if(r < 8) {
                 if(WxForecast[r].High > WxConditions[0].High)
                     WxConditions[0].High = WxForecast[r].High;
@@ -373,7 +370,7 @@ bool obtainWeatherData(WiFiClient &client, const String &RequestType) {
             return false;
         client.stop();
     } else {
-        Serial.printf("connection failed, error: %s", http.errorToString(httpCode).c_str());
+        log_e("connection failed, error: %s (%d)", http.errorToString(httpCode).c_str(), httpCode);
         client.stop();
         http.end();
         return false;
@@ -382,11 +379,11 @@ bool obtainWeatherData(WiFiClient &client, const String &RequestType) {
     return true;
 }
 
-float mm_to_inches(float value_mm) { return 0.0393701 * value_mm; }
+constexpr float mm_to_inches(float value_mm) { return 0.0393701 * value_mm; }
 
-float hPa_to_inHg(float value_hPa) { return 0.02953 * value_hPa; }
+constexpr float hPa_to_inHg(float value_hPa) { return 0.02953 * value_hPa; }
 
-int JulianDate(int d, int m, int y) {
+constexpr int JulianDate(int d, int m, int y) {
     int mm, yy, k1, k2, k3, j;
     yy = y - (int)((12 - m) / 10);
     mm = m + 9;
@@ -402,7 +399,7 @@ int JulianDate(int d, int m, int y) {
     return j;
 }
 
-float SumOfPrecip(float DataArray[], int readings) {
+constexpr float SumOfPrecip(float DataArray[], int readings) {
     float sum = 0;
     for(int i = 0; i <= readings; i++)
         sum += DataArray[i];
