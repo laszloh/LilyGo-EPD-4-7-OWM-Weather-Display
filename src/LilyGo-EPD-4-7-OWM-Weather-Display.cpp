@@ -19,11 +19,12 @@
 #define SCREEN_WIDTH EPD_WIDTH
 #define SCREEN_HEIGHT EPD_HEIGHT
 
-enum Alignment { LEFT, RIGHT, CENTER };
-#define autoscale_on true
-#define autoscale_off false
-#define barchart_on true
-#define barchart_off false
+enum class Alignment { LEFT, RIGHT, CENTER };
+enum class Color : uint8_t { White = 0xFF, LightGrey = 0xBB, Grey = 0x88, DarkGrey = 0x44, Black = 0x00 };
+
+template <typename E> constexpr auto to_underlying(E e) noexcept {
+    return static_cast<std::underlying_type_t<E>>(e);
+}
 
 boolean LargeIcon = true;
 boolean SmallIcon = false;
@@ -111,7 +112,7 @@ void addsnow(int x, int y, int scale, bool IconSize);
 void addtstorm(int x, int y, int scale);
 void addsun(int x, int y, int scale, bool IconSize);
 void addfog(int x, int y, int scale, int linesize, bool IconSize);
-void DrawAngledLine(int x, int y, int x1, int y1, int size, int color);
+void DrawAngledLine(int x, int y, int x1, int y1, int size, Color color);
 void ClearSky(int x, int y, bool IconSize, String IconName);
 void BrokenClouds(int x, int y, bool IconSize, String IconName);
 void FewClouds(int x, int y, bool IconSize, String IconName);
@@ -132,15 +133,15 @@ void DrawUVI(int x, int y);
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title,
                float DataArray[], int readings, boolean auto_scale, boolean barchart_mode);
 void drawString(int x, int y, String text, Alignment align);
-void fillCircle(int x, int y, int r, uint8_t color);
-void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
-void drawFastVLine(int16_t x0, int16_t y0, int length, uint16_t color);
-void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
-void drawCircle(int x0, int y0, int r, uint8_t color);
-void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
-void drawPixel(int x, int y, uint8_t color);
+void fillCircle(int x, int y, int r, Color color);
+void drawFastHLine(int16_t x0, int16_t y0, int length, Color color);
+void drawFastVLine(int16_t x0, int16_t y0, int length, Color color);
+void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, Color color);
+void drawCircle(int x0, int y0, int r, Color color);
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, Color color);
+void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, Color color);
+void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color);
+void drawPixel(int x, int y, Color color);
 void setFont(GFXfont const &font);
 void edp_update();
 
@@ -313,7 +314,7 @@ bool DecodeWeather(WiFiClient &json, String Type) {
             Serial.println("Pres: " + String(WxForecast[r].Pressure));
             WxForecast[r].Humidity = list[r]["main"]["humidity"].as<float>();
             Serial.println("Humi: " + String(WxForecast[r].Humidity));
-            WxForecast[r].Icon = list[r]["weather"][0]["icon"].as<char *>();
+            WxForecast[r].Icon = list[r]["weather"][0]["icon"].as<const char *>();
             Serial.println("Icon: " + String(WxForecast[r].Icon));
             WxForecast[r].Rainfall = list[r]["rain"]["3h"].as<float>();
             Serial.println("Rain: " + String(WxForecast[r].Rainfall));
@@ -430,9 +431,9 @@ void DisplayWeather() {
 
 void DisplayGeneralInfoSection() {
     setFont(OpenSans10B);
-    drawString(5, 2, City, LEFT);
+    drawString(5, 2, City, Alignment::LEFT);
     setFont(OpenSans8B);
-    drawString(500, 2, Date_str + "  @   " + Time_str, LEFT);
+    drawString(500, 2, Date_str + "  @   " + Time_str, Alignment::LEFT);
 }
 
 void DisplayWeatherIcon(int x, int y) { DisplayConditionsSection(x, y, WxConditions[0].Icon, LargeIcon); }
@@ -448,40 +449,40 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
     arrow(x, y, Cradius - 22, angle, 18, 33);
     setFont(OpenSans8B);
     int dxo, dyo, dxi, dyi;
-    drawCircle(x, y, Cradius, Black);
-    drawCircle(x, y, Cradius + 1, Black);
-    drawCircle(x, y, Cradius * 0.7, Black);
+    drawCircle(x, y, Cradius, Color::Grey);
+    drawCircle(x, y, Cradius + 1, Color::Grey);
+    drawCircle(x, y, Cradius * 0.7, Color::Grey);
     for(float a = 0; a < 360; a = a + 22.5) {
         dxo = Cradius * cos((a - 90) * PI / 180);
         dyo = Cradius * sin((a - 90) * PI / 180);
         if(a == 45)
-            drawString(dxo + x + 15, dyo + y - 18, TXT_NE, CENTER);
+            drawString(dxo + x + 15, dyo + y - 18, TXT_NE, Alignment::CENTER);
         if(a == 135)
-            drawString(dxo + x + 20, dyo + y - 2, TXT_SE, CENTER);
+            drawString(dxo + x + 20, dyo + y - 2, TXT_SE, Alignment::CENTER);
         if(a == 225)
-            drawString(dxo + x - 20, dyo + y - 2, TXT_SW, CENTER);
+            drawString(dxo + x - 20, dyo + y - 2, TXT_SW, Alignment::CENTER);
         if(a == 315)
-            drawString(dxo + x - 15, dyo + y - 18, TXT_NW, CENTER);
+            drawString(dxo + x - 15, dyo + y - 18, TXT_NW, Alignment::CENTER);
         dxi = dxo * 0.9;
         dyi = dyo * 0.9;
-        drawLine(dxo + x, dyo + y, dxi + x, dyi + y, Black);
+        drawLine(dxo + x, dyo + y, dxi + x, dyi + y, Color::Grey);
         dxo = dxo * 0.7;
         dyo = dyo * 0.7;
         dxi = dxo * 0.9;
         dyi = dyo * 0.9;
-        drawLine(dxo + x, dyo + y, dxi + x, dyi + y, Black);
+        drawLine(dxo + x, dyo + y, dxi + x, dyi + y, Color::Grey);
     }
-    drawString(x, y - Cradius - 20, TXT_N, CENTER);
-    drawString(x, y + Cradius + 10, TXT_S, CENTER);
-    drawString(x - Cradius - 15, y - 5, TXT_W, CENTER);
-    drawString(x + Cradius + 10, y - 5, TXT_E, CENTER);
-    drawString(x + 3, y + 50, String(angle, 0) + "°", CENTER);
+    drawString(x, y - Cradius - 20, TXT_N, Alignment::CENTER);
+    drawString(x, y + Cradius + 10, TXT_S, Alignment::CENTER);
+    drawString(x - Cradius - 15, y - 5, TXT_W, Alignment::CENTER);
+    drawString(x + Cradius + 10, y - 5, TXT_E, Alignment::CENTER);
+    drawString(x + 3, y + 50, String(angle, 0) + "°", Alignment::CENTER);
     setFont(OpenSans12B);
-    drawString(x, y - 50, WindDegToOrdinalDirection(angle), CENTER);
+    drawString(x, y - 50, WindDegToOrdinalDirection(angle), Alignment::CENTER);
     setFont(OpenSans24B);
-    drawString(x + 3, y - 18, String(windspeed, 1), CENTER);
+    drawString(x + 3, y - 18, String(windspeed, 1), Alignment::CENTER);
     setFont(OpenSans12B);
-    drawString(x, y + 25, (Units == "M" ? "m/s" : "mph"), CENTER);
+    drawString(x, y + 25, (Units == "M" ? "m/s" : "mph"), Alignment::CENTER);
 }
 
 String WindDegToOrdinalDirection(float winddirection) {
@@ -524,16 +525,17 @@ void DisplayTempHumiPressSection(int x, int y) {
     setFont(OpenSans18B);
     drawString(x - 30, y,
                String(WxConditions[0].Temperature, 1) + "°   " + String(WxConditions[0].Humidity, 0) + "%",
-               LEFT);
+               Alignment::LEFT);
     setFont(OpenSans12B);
     DrawPressureAndTrend(x + 195, y + 15, WxConditions[0].Pressure, WxConditions[0].Trend);
     int Yoffset = 42;
     if(WxConditions[0].Windspeed > 0) {
-        drawString(x - 30, y + Yoffset, String(WxConditions[0].FeelsLike, 1) + "° FL", LEFT);
+        drawString(x - 30, y + Yoffset, String(WxConditions[0].FeelsLike, 1) + "° FL", Alignment::LEFT);
         Yoffset += 30;
     }
     drawString(x - 30, y + Yoffset,
-               String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "° Hi/Lo", LEFT);
+               String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "° Hi/Lo",
+               Alignment::LEFT);
 }
 
 void DisplayForecastTextSection(int x, int y) {
@@ -558,9 +560,9 @@ void DisplayForecastTextSection(int x, int y) {
             += " (" + String(WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
     String Line1 = Wx_Description.substring(0, Wx_Description.indexOf("~"));
     String Line2 = Wx_Description.substring(Wx_Description.indexOf("~") + 1);
-    drawString(x + 30, y + 5, TitleCase(Line1), LEFT);
+    drawString(x + 30, y + 5, TitleCase(Line1), Alignment::LEFT);
     if(Line1 != Line2)
-        drawString(x + 30, y + 30, Line2, LEFT);
+        drawString(x + 30, y + 30, Line2, Alignment::LEFT);
 }
 
 void DisplayVisiCCoverUVISection(int x, int y) {
@@ -584,7 +586,7 @@ void Display_UVIndexLevel(int x, int y, float UVI) {
         Level = " (VH)";
     if(UVI >= 11)
         Level = " (EX)";
-    drawString(x + 20, y - 5, String(UVI, (UVI < 0 ? 1 : 0)) + Level, LEFT);
+    drawString(x + 20, y - 5, String(UVI, (UVI < 0 ? 1 : 0)) + Level, Alignment::LEFT);
     DrawUVI(x - 10, y - 5);
 }
 
@@ -594,9 +596,10 @@ void DisplayForecastWeather(int x, int y, int index, int fwidth) {
     setFont(OpenSans10B);
     drawString(x + fwidth / 2, y + 30,
                String(ConvertUnixTime(WxForecast[index].Dt + WxConditions[0].FTimezone).substring(0, 5)),
-               CENTER);
+               Alignment::CENTER);
     drawString(x + fwidth / 2, y + 130,
-               String(WxForecast[index].High, 0) + "°/" + String(WxForecast[index].Low, 0) + "°", CENTER);
+               String(WxForecast[index].High, 0) + "°/" + String(WxForecast[index].Low, 0) + "°",
+               Alignment::CENTER);
 }
 
 double NormalizedMoonPhase(int d, int m, int y) {
@@ -611,11 +614,12 @@ void DisplayAstronomySection(int x, int y) {
     time_t now = time(NULL);
     struct tm *now_utc = gmtime(&now);
     drawString(x + 5, y + 102,
-               MoonPhase(now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere), LEFT);
+               MoonPhase(now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere),
+               Alignment::LEFT);
     DrawMoonImage(x + 10, y + 23);
     DrawMoon(x - 28, y - 15, 75, now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere);
-    drawString(x + 115, y + 40, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), LEFT);
-    drawString(x + 115, y + 80, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), LEFT);
+    drawString(x + 115, y + 40, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), Alignment::LEFT);
+    drawString(x + 115, y + 80, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), Alignment::LEFT);
     DrawSunriseImage(x + 180, y + 20);
     DrawSunsetImage(x + 180, y + 60);
 }
@@ -626,7 +630,7 @@ void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisph
     if(hemisphere == "south")
         Phase = 1 - Phase;
 
-    fillCircle(x + diameter - 1, y + diameter, diameter / 2 + 1, DarkGrey);
+    fillCircle(x + diameter - 1, y + diameter, diameter / 2 + 1, Color::DarkGrey);
     const int number_of_lines = 90;
     for(double Ypos = 0; Ypos <= number_of_lines / 2; Ypos++) {
         double Xpos = sqrt(number_of_lines / 2 * number_of_lines / 2 - Ypos * Ypos);
@@ -649,10 +653,10 @@ void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisph
         double pW3y = (Ypos + number_of_lines) / number_of_lines * diameter + y;
         double pW4x = (Xpos2 + number_of_lines) / number_of_lines * diameter + x;
         double pW4y = (Ypos + number_of_lines) / number_of_lines * diameter + y;
-        drawLine(pW1x, pW1y, pW2x, pW2y, White);
-        drawLine(pW3x, pW3y, pW4x, pW4y, White);
+        drawLine(pW1x, pW1y, pW2x, pW2y, Color::White);
+        drawLine(pW3x, pW3y, pW4x, pW4y, Color::White);
     }
-    drawCircle(x + diameter - 1, y + diameter, diameter / 2, Black);
+    drawCircle(x + diameter - 1, y + diameter, diameter / 2, Color::Grey);
 }
 
 String MoonPhase(int d, int m, int y, String hemisphere) {
@@ -726,19 +730,17 @@ void DisplayGraphSection(int x, int y) {
     int gap = gwidth + gx;
 
     DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN,
-              pressure_readings, max_readings, autoscale_on, barchart_off);
+              pressure_readings, max_readings, true, false);
     DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F,
-              temperature_readings, max_readings, autoscale_on, barchart_off);
+              temperature_readings, max_readings, true, false);
     DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100, TXT_HUMIDITY_PERCENT, humidity_readings,
-              max_readings, autoscale_off, barchart_off);
+              max_readings, false, false);
     if(SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings))
         DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30,
-                  Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on,
-                  barchart_on);
+                  Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, true, true);
     else
         DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30,
-                  Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on,
-                  barchart_on);
+                  Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, max_readings, true, true);
 }
 
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
@@ -781,17 +783,17 @@ void arrow(int x, int y, int asize, float aangle, int pwidth, int plength) {
     float yy2 = y2 * cos(angle) + x2 * sin(angle) + dy;
     float xx3 = x3 * cos(angle) - y3 * sin(angle) + dx;
     float yy3 = y3 * cos(angle) + x3 * sin(angle) + dy;
-    fillTriangle(xx1, yy1, xx3, yy3, xx2, yy2, Black);
+    fillTriangle(xx1, yy1, xx3, yy3, xx2, yy2, Color::Grey);
 }
 
 void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12, int o13, int o14) {
-    drawLine(x + o1, y + o2, x + o3, y + o4, Black);
-    drawLine(x + o11, y + o12, x + o13, y + o14, Black);
+    drawLine(x + o1, y + o2, x + o3, y + o4, Color::Grey);
+    drawLine(x + o11, y + o12, x + o13, y + o14, Color::Grey);
 }
 
 void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
     drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? "hPa" : "in"),
-               LEFT);
+               Alignment::LEFT);
     if(slope == "+") {
         DrawSegment(x, y, 0, 0, 8, -8, 8, -8, 16, 0);
         DrawSegment(x - 1, y, 0, 0, 8, -8, 8, -8, 16, 0);
@@ -824,7 +826,7 @@ void DrawRSSI(int x, int y, int rssi) {
             WIFIsignal = 12;
         if(_rssi <= -100)
             WIFIsignal = 6;
-        fillRect(x + xpos * 8, y - WIFIsignal, 6, WIFIsignal, Black);
+        fillRect(x + xpos * 8, y - WIFIsignal, 6, WIFIsignal, Color::Grey);
         xpos++;
     }
 }
@@ -874,44 +876,45 @@ void DrawBattery(int x, int y) {
             percentage = 100;
         if(voltage <= 3.20)
             percentage = 0;
-        drawRect(x + 25, y - 14, 40, 15, Black);
-        fillRect(x + 65, y - 10, 4, 7, Black);
-        fillRect(x + 27, y - 12, 36 * percentage / 100.0, 11, Black);
-        drawString(x + 85, y - 14, String(percentage) + "%  " + String(voltage, 1) + "v", LEFT);
+        drawRect(x + 25, y - 14, 40, 15, Color::Grey);
+        fillRect(x + 65, y - 10, 4, 7, Color::Grey);
+        fillRect(x + 27, y - 12, 36 * percentage / 100.0, 11, Color::Grey);
+        drawString(x + 85, y - 14, String(percentage) + "%  " + String(voltage, 1) + "v", Alignment::LEFT);
     }
 }
 
 
 void addcloud(int x, int y, int scale, int linesize) {
-    fillCircle(x - scale * 3, y, scale, Black);
-    fillCircle(x + scale * 3, y, scale, Black);
-    fillCircle(x - scale, y - scale, scale * 1.4, Black);
-    fillCircle(x + scale * 1.5, y - scale * 1.3, scale * 1.75, Black);
-    fillRect(x - scale * 3 - 1, y - scale, scale * 6, scale * 2 + 1, Black);
-    fillCircle(x - scale * 3, y, scale - linesize, White);
-    fillCircle(x + scale * 3, y, scale - linesize, White);
-    fillCircle(x - scale, y - scale, scale * 1.4 - linesize, White);
-    fillCircle(x + scale * 1.5, y - scale * 1.3, scale * 1.75 - linesize, White);
-    fillRect(x - scale * 3 + 2, y - scale + linesize - 1, scale * 5.9, scale * 2 - linesize * 2 + 2, White);
+    fillCircle(x - scale * 3, y, scale, Color::Grey);
+    fillCircle(x + scale * 3, y, scale, Color::Grey);
+    fillCircle(x - scale, y - scale, scale * 1.4, Color::Grey);
+    fillCircle(x + scale * 1.5, y - scale * 1.3, scale * 1.75, Color::Grey);
+    fillRect(x - scale * 3 - 1, y - scale, scale * 6, scale * 2 + 1, Color::Grey);
+    fillCircle(x - scale * 3, y, scale - linesize, Color::White);
+    fillCircle(x + scale * 3, y, scale - linesize, Color::White);
+    fillCircle(x - scale, y - scale, scale * 1.4 - linesize, Color::White);
+    fillCircle(x + scale * 1.5, y - scale * 1.3, scale * 1.75 - linesize, Color::White);
+    fillRect(x - scale * 3 + 2, y - scale + linesize - 1, scale * 5.9, scale * 2 - linesize * 2 + 2,
+             Color::White);
 }
 
 void addrain(int x, int y, int scale, bool IconSize) {
     if(IconSize == SmallIcon) {
         setFont(OpenSans8B);
-        drawString(x - 25, y + 12, "///////", LEFT);
+        drawString(x - 25, y + 12, "///////", Alignment::LEFT);
     } else {
         setFont(OpenSans18B);
-        drawString(x - 60, y + 25, "///////", LEFT);
+        drawString(x - 60, y + 25, "///////", Alignment::LEFT);
     }
 }
 
 void addsnow(int x, int y, int scale, bool IconSize) {
     if(IconSize == SmallIcon) {
         setFont(OpenSans8B);
-        drawString(x - 25, y + 15, "* * * *", LEFT);
+        drawString(x - 25, y + 15, "* * * *", Alignment::LEFT);
     } else {
         setFont(OpenSans18B);
-        drawString(x - 60, y + 30, "* * * *", LEFT);
+        drawString(x - 60, y + 30, "* * * *", Alignment::LEFT);
     }
 }
 
@@ -919,50 +922,50 @@ void addtstorm(int x, int y, int scale) {
     y = y + scale / 2;
     for(int i = 1; i < 5; i++) {
         drawLine(x - scale * 4 + scale * i * 1.5 + 0, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 0,
-                 y + scale, Black);
+                 y + scale, Color::Grey);
         drawLine(x - scale * 4 + scale * i * 1.5 + 1, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 1,
-                 y + scale, Black);
+                 y + scale, Color::Grey);
         drawLine(x - scale * 4 + scale * i * 1.5 + 2, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 2,
-                 y + scale, Black);
+                 y + scale, Color::Grey);
         drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 0, x - scale * 3 + scale * i * 1.5 + 0,
-                 y + scale * 1.5 + 0, Black);
+                 y + scale * 1.5 + 0, Color::Grey);
         drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 1, x - scale * 3 + scale * i * 1.5 + 0,
-                 y + scale * 1.5 + 1, Black);
+                 y + scale * 1.5 + 1, Color::Grey);
         drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 2, x - scale * 3 + scale * i * 1.5 + 0,
-                 y + scale * 1.5 + 2, Black);
+                 y + scale * 1.5 + 2, Color::Grey);
         drawLine(x - scale * 3.5 + scale * i * 1.4 + 0, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 0,
-                 y + scale * 1.5, Black);
+                 y + scale * 1.5, Color::Grey);
         drawLine(x - scale * 3.5 + scale * i * 1.4 + 1, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 1,
-                 y + scale * 1.5, Black);
+                 y + scale * 1.5, Color::Grey);
         drawLine(x - scale * 3.5 + scale * i * 1.4 + 2, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 2,
-                 y + scale * 1.5, Black);
+                 y + scale * 1.5, Color::Grey);
     }
 }
 
 void addsun(int x, int y, int scale, bool IconSize) {
     int linesize = 5;
-    fillRect(x - scale * 2, y, scale * 4, linesize, Black);
-    fillRect(x, y - scale * 2, linesize, scale * 4, Black);
+    fillRect(x - scale * 2, y, scale * 4, linesize, Color::Grey);
+    fillRect(x, y - scale * 2, linesize, scale * 4, Color::Grey);
     DrawAngledLine(x + scale * 1.4, y + scale * 1.4, (x - scale * 1.4), (y - scale * 1.4), linesize * 1.5,
-                   Black);
+                   Color::Grey);
     DrawAngledLine(x - scale * 1.4, y + scale * 1.4, (x + scale * 1.4), (y - scale * 1.4), linesize * 1.5,
-                   Black);
-    fillCircle(x, y, scale * 1.3, White);
-    fillCircle(x, y, scale, Black);
-    fillCircle(x, y, scale - linesize, White);
+                   Color::Grey);
+    fillCircle(x, y, scale * 1.3, Color::White);
+    fillCircle(x, y, scale, Color::Grey);
+    fillCircle(x, y, scale - linesize, Color::White);
 }
 
 void addfog(int x, int y, int scale, int linesize, bool IconSize) {
     if(IconSize == SmallIcon)
         linesize = 3;
     for(int i = 0; i < 6; i++) {
-        fillRect(x - scale * 3, y + scale * 1.5, scale * 6, linesize, Black);
-        fillRect(x - scale * 3, y + scale * 2.0, scale * 6, linesize, Black);
-        fillRect(x - scale * 3, y + scale * 2.5, scale * 6, linesize, Black);
+        fillRect(x - scale * 3, y + scale * 1.5, scale * 6, linesize, Color::Grey);
+        fillRect(x - scale * 3, y + scale * 2.0, scale * 6, linesize, Color::Grey);
+        fillRect(x - scale * 3, y + scale * 2.5, scale * 6, linesize, Color::Grey);
     }
 }
 
-void DrawAngledLine(int x, int y, int x1, int y1, int size, int color) {
+void DrawAngledLine(int x, int y, int x1, int y1, int size, Color color) {
     int dx = (size / 2.0) * (x - x1) / sqrt(sq(x - x1) + sq(y - y1));
     int dy = (size / 2.0) * (y - y1) / sqrt(sq(x - x1) + sq(y - y1));
     fillTriangle(x + dx, y - dy, x - dx, y + dy, x1 + dx, y1 - dy, color);
@@ -1070,24 +1073,24 @@ void CloudCover(int x, int y, int CloudCover) {
     addcloud(x - 9, y, Small * 0.3, 2);
     addcloud(x + 3, y - 2, Small * 0.3, 2);
     addcloud(x, y + 15, Small * 0.6, 2);
-    drawString(x + 30, y, String(CloudCover) + "%", LEFT);
+    drawString(x + 30, y, String(CloudCover) + "%", Alignment::LEFT);
 }
 
 void Visibility(int x, int y, String Visibility) {
     float start_angle = 0.52, end_angle = 2.61, Offset = 10;
     int r = 14;
     for(float i = start_angle; i < end_angle; i = i + 0.05) {
-        drawPixel(x + r * cos(i), y - r / 2 + r * sin(i) + Offset, Black);
-        drawPixel(x + r * cos(i), 1 + y - r / 2 + r * sin(i) + Offset, Black);
+        drawPixel(x + r * cos(i), y - r / 2 + r * sin(i) + Offset, Color::Grey);
+        drawPixel(x + r * cos(i), 1 + y - r / 2 + r * sin(i) + Offset, Color::Grey);
     }
     start_angle = 3.61;
     end_angle = 5.78;
     for(float i = start_angle; i < end_angle; i = i + 0.05) {
-        drawPixel(x + r * cos(i), y + r / 2 + r * sin(i) + Offset, Black);
-        drawPixel(x + r * cos(i), 1 + y + r / 2 + r * sin(i) + Offset, Black);
+        drawPixel(x + r * cos(i), y + r / 2 + r * sin(i) + Offset, Color::Grey);
+        drawPixel(x + r * cos(i), 1 + y + r / 2 + r * sin(i) + Offset, Color::Grey);
     }
-    fillCircle(x, y + Offset, r / 4, Black);
-    drawString(x + 20, y, Visibility, LEFT);
+    fillCircle(x, y + Offset, r / 4, Color::Grey);
+    drawString(x + 20, y, Visibility, Alignment::LEFT);
 }
 
 void addmoon(int x, int y, bool IconSize) {
@@ -1097,8 +1100,8 @@ void addmoon(int x, int y, bool IconSize) {
         xOffset = 130;
         yOffset = -40;
     }
-    fillCircle(x - 28 + xOffset, y - 37 + yOffset, uint16_t(Small * 1.0), Black);
-    fillCircle(x - 16 + xOffset, y - 37 + yOffset, uint16_t(Small * 1.6), White);
+    fillCircle(x - 28 + xOffset, y - 37 + yOffset, uint16_t(Small * 1.0), Color::Grey);
+    fillCircle(x - 16 + xOffset, y - 37 + yOffset, uint16_t(Small * 1.6), Color::White);
 }
 
 void Nodata(int x, int y, bool IconSize, String IconName) {
@@ -1106,7 +1109,7 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
         setFont(OpenSans24B);
     else
         setFont(OpenSans12B);
-    drawString(x - 3, y - 10, "?", CENTER);
+    drawString(x - 3, y - 10, "?", Alignment::CENTER);
 }
 
 void DrawMoonImage(int x, int y) {
@@ -1154,16 +1157,16 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
 
     last_x = x_pos + 1;
     last_y = y_pos + (Y1Max - constrain(DataArray[1], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight;
-    drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, Grey);
-    drawString(x_pos - 20 + gwidth / 2, y_pos - 28, title, CENTER);
+    drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, Color::Grey);
+    drawString(x_pos - 20 + gwidth / 2, y_pos - 28, title, Alignment::CENTER);
     for(int gx = 0; gx < readings; gx++) {
         x2 = x_pos + gx * gwidth / (readings - 1) - 1;
         y2 = y_pos + (Y1Max - constrain(DataArray[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
         if(barchart_mode) {
-            fillRect(last_x + 2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 2, Black);
+            fillRect(last_x + 2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 2, Color::Grey);
         } else {
-            drawLine(last_x, last_y - 1, x2, y2 - 1, Black);
-            drawLine(last_x, last_y, x2, y2, Black);
+            drawLine(last_x, last_y - 1, x2, y2 - 1, Color::Grey);
+            drawLine(last_x, last_y, x2, y2, Color::Grey);
         }
         last_x = x2;
         last_y = y2;
@@ -1175,27 +1178,28 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
             if(spacing < y_minor_axis)
                 drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes),
                               y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes),
-                              Grey);
+                              Color::Grey);
         }
         if((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing) < 5 || title == TXT_PRESSURE_IN) {
             drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis - 5,
-                       String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
+                       String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1),
+                       Alignment::RIGHT);
         } else {
             if(Y1Min < 1 && Y1Max < 10) {
                 drawString(x_pos - 3, y_pos + gheight * spacing / y_minor_axis - 5,
                            String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1),
-                           RIGHT);
+                           Alignment::RIGHT);
             } else {
                 drawString(x_pos - 7, y_pos + gheight * spacing / y_minor_axis - 5,
                            String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 0),
-                           RIGHT);
+                           Alignment::RIGHT);
             }
         }
     }
     for(int i = 0; i < 3; i++) {
-        drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 10, String(i) + "d", LEFT);
+        drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 10, String(i) + "d", Alignment::LEFT);
         if(i < 2)
-            drawFastVLine(x_pos + gwidth / 3 * i + gwidth / 3, y_pos, gheight, LightGrey);
+            drawFastVLine(x_pos + gwidth / 3 * i + gwidth / 3, y_pos, gheight, Color::LightGrey);
     }
 }
 
@@ -1205,43 +1209,47 @@ void drawString(int x, int y, String text, Alignment align) {
     int w, h;
     int xx = x, yy = y;
     get_text_bounds(&currentFont, data, &xx, &yy, &x1, &y1, &w, &h, NULL);
-    if(align == RIGHT)
+    if(align == Alignment::RIGHT)
         x = x - w;
-    if(align == CENTER)
+    if(align == Alignment::CENTER)
         x = x - w / 2;
     int cursor_y = y + h;
     write_string(&currentFont, data, &x, &cursor_y, framebuffer);
 }
 
-void fillCircle(int x, int y, int r, uint8_t color) { epd_fill_circle(x, y, r, color, framebuffer); }
-
-void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color) {
-    epd_draw_hline(x0, y0, length, color, framebuffer);
+void fillCircle(int x, int y, int r, Color color) {
+    epd_fill_circle(x, y, r, to_underlying(color), framebuffer);
 }
 
-void drawFastVLine(int16_t x0, int16_t y0, int length, uint16_t color) {
-    epd_draw_vline(x0, y0, length, color, framebuffer);
+void drawFastHLine(int16_t x0, int16_t y0, int length, Color color) {
+    epd_draw_hline(x0, y0, length, to_underlying(color), framebuffer);
 }
 
-void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
-    epd_write_line(x0, y0, x1, y1, color, framebuffer);
+void drawFastVLine(int16_t x0, int16_t y0, int length, Color color) {
+    epd_draw_vline(x0, y0, length, to_underlying(color), framebuffer);
 }
 
-void drawCircle(int x0, int y0, int r, uint8_t color) { epd_draw_circle(x0, y0, r, color, framebuffer); }
-
-void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-    epd_draw_rect(x, y, w, h, color, framebuffer);
+void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, Color color) {
+    epd_write_line(x0, y0, x1, y1, to_underlying(color), framebuffer);
 }
 
-void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-    epd_fill_rect(x, y, w, h, color, framebuffer);
+void drawCircle(int x0, int y0, int r, Color color) {
+    epd_draw_circle(x0, y0, r, to_underlying(color), framebuffer);
 }
 
-void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color) {
-    epd_fill_triangle(x0, y0, x1, y1, x2, y2, color, framebuffer);
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, Color color) {
+    epd_draw_rect(x, y, w, h, to_underlying(color), framebuffer);
 }
 
-void drawPixel(int x, int y, uint8_t color) { epd_draw_pixel(x, y, color, framebuffer); }
+void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, Color color) {
+    epd_fill_rect(x, y, w, h, to_underlying(color), framebuffer);
+}
+
+void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color) {
+    epd_fill_triangle(x0, y0, x1, y1, x2, y2, to_underlying(color), framebuffer);
+}
+
+void drawPixel(int x, int y, Color color) { epd_draw_pixel(x, y, to_underlying(color), framebuffer); }
 
 void setFont(GFXfont const &font) { currentFont = font; }
 
