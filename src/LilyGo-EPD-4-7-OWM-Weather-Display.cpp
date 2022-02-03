@@ -12,24 +12,14 @@
 #include <SPI.h>
 #include <time.h>
 
-#include "owm_credentials.h"
+#include "config.h"
 #include "forecast_record.h"
 #include "lang.h"
 
 #define SCREEN_WIDTH EPD_WIDTH
 #define SCREEN_HEIGHT EPD_HEIGHT
 
-
-String version = "2.7 / 4.7in";
-
-
-enum alignment {LEFT, RIGHT, CENTER};
-#define White 0xFF
-#define LightGrey 0xBB
-#define Grey 0x88
-#define DarkGrey 0x44
-#define Black 0x00
-
+enum Alignment {LEFT, RIGHT, CENTER};
 #define autoscale_on true
 #define autoscale_off false
 #define barchart_on true
@@ -140,7 +130,7 @@ void DrawSunriseImage(int x, int y);
 void DrawSunsetImage(int x, int y);
 void DrawUVI(int x, int y);
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode);
-void drawString(int x, int y, String text, alignment align);
+void drawString(int x, int y, String text, Alignment align);
 void fillCircle(int x, int y, int r, uint8_t color);
 void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
 void drawFastVLine(int16_t x0, int16_t y0, int length, uint16_t color);
@@ -1067,7 +1057,7 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
   }
 }
 
-void drawString(int x, int y, String text, alignment align) {
+void drawString(int x, int y, String text, Alignment align) {
   char * data = const_cast<char*>(text.c_str());
   int x1, y1;
   int w, h;
