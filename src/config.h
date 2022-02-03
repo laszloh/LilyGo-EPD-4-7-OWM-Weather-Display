@@ -3,12 +3,12 @@
 constexpr bool DebugDisplayUpdate = false;
 
 // if missing, create a file own_credentials.h with the following content:
-// <<< /*
+// <<<
 // #pragma once
 // constexpr char* ssid     = "Your WiFi SSID";
 // constexpr char* password = "Your PASSWORD";
 // constexpr char *apikey   = "Your OWM API Key";               // See: https://openweathermap.org/
-// */>>>
+// >>>
 #include "own_credentials.h"
 
 // Use your own API key by signing up for a free developer account at https://openweathermap.org/
