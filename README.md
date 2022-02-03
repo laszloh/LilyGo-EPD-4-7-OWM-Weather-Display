@@ -2,8 +2,6 @@
 
 Open Weather Map weather station using [LilyGo EPD 4.7" display](https://bit.ly/3exI3Hb)
 
-[![Presetation video](assets/001.png)](https://www.youtube.com/watch?v=TQaVQcld1Pk)
-
 # License
 
 This code created by https://github.com/G6EJD/ is using the GPLv3 https://github.com/Xinyuan-LilyGO/LilyGo-EPD47 library to handle the display and as such falls into the GPLv3 license itself. This situation is described in the https://www.gnu.org/licenses/gpl-faq.html#IfLibraryIsGPL
