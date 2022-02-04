@@ -32,11 +32,13 @@ constexpr int Large = 20;
 constexpr int Small = 10;
 String Time_str = "--:--:--";
 String Date_str = "-- --- ----";
-int wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0, EventCnt = 0, vref = 1100;
+int wifi_signal;
+int vref = 1100;
+RTC_DATA_ATTR struct tm timeinfo;
 
 constexpr int max_readings = 24;
 
-Forecast_record_type WxConditions[1];
+Forecast_record_type WxConditions;
 Forecast_record_type WxForecast[max_readings];
 
 float pressure_readings[max_readings] = {0};
@@ -149,7 +151,7 @@ void edp_update();
 void BeginSleep() {
     epd_poweroff_all();
     UpdateLocalTime();
-    SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)) + Delta;
+    SleepTimer = (SleepDuration * 60 - ((timeinfo.tm_min % SleepDuration) * 60 + timeinfo.tm_sec)) + Delta;
     esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL);
     log_d("Awake for : %d ms", millis() - StartTime);
     log_d("Entering %d (secs) of sleep time", SleepTimer);
@@ -211,9 +213,9 @@ void setup() {
     if(StartWiFi() == WL_CONNECTED && SetupTime() == true) {
         bool WakeUp = false;
         if(WakeupHour > SleepHour)
-            WakeUp = (CurrentHour >= WakeupHour || CurrentHour <= SleepHour);
+            WakeUp = (timeinfo.tm_hour >= WakeupHour || timeinfo.tm_hour <= SleepHour);
         else
-            WakeUp = (CurrentHour >= WakeupHour && CurrentHour <= SleepHour);
+            WakeUp = (timeinfo.tm_hour >= WakeupHour && timeinfo.tm_hour <= SleepHour);
         if(WakeUp) {
             byte Attempts = 1;
             bool RxWeather = false;
@@ -242,7 +244,7 @@ void setup() {
 }
 
 void Convert_Readings_to_Imperial() {
-    WxConditions[0].Pressure = hPa_to_inHg(WxConditions[0].Pressure);
+    WxConditions.Pressure = hPa_to_inHg(WxConditions.Pressure);
     WxForecast[0].Rainfall = mm_to_inches(WxForecast[0].Rainfall);
     WxForecast[0].Snowfall = mm_to_inches(WxForecast[0].Snowfall);
 }
@@ -260,41 +262,41 @@ bool DecodeWeather(WiFiClient &json, const bool forecast) {
     log_d("Decoding %s data", (forecast ? "forecast" : "oncall"));
     if(!forecast) {
 
-        WxConditions[0].High = -50;
-        WxConditions[0].Low = 50;
-        WxConditions[0].FTimezone = doc["timezone_offset"];
+        WxConditions.High = -50;
+        WxConditions.Low = 50;
+        WxConditions.FTimezone = doc["timezone_offset"];
         JsonObject current = doc["current"];
-        WxConditions[0].Sunrise = current["sunrise"];
-        log_v("   SRis: %d", WxConditions[0].Sunrise);
-        WxConditions[0].Sunset = current["sunset"];
-        log_v("   SSet: %d", WxConditions[0].Sunset);
-        WxConditions[0].Temperature = current["temp"];
-        log_v("   Temp: %.2f", WxConditions[0].Temperature);
-        WxConditions[0].FeelsLike = current["feels_like"];
-        log_v("   FLik: %.2f", WxConditions[0].FeelsLike);
-        WxConditions[0].Pressure = current["pressure"];
-        log_v("   Pres: %.2f", WxConditions[0].Pressure);
-        WxConditions[0].Humidity = current["humidity"];
-        log_v("   Humi: %.2f", WxConditions[0].Humidity);
-        WxConditions[0].DewPoint = current["dew_point"];
-        log_v("   DPoi: %.2f", WxConditions[0].DewPoint);
-        WxConditions[0].UVI = current["uvi"];
-        log_v("   UVin: %.2f", WxConditions[0].UVI);
-        WxConditions[0].Cloudcover = current["clouds"];
-        log_v("   CCov: %d", WxConditions[0].Cloudcover);
-        WxConditions[0].Visibility = current["visibility"];
-        log_v("   Visi: %d", WxConditions[0].Visibility);
-        WxConditions[0].Windspeed = current["wind_speed"];
-        log_v("   WSpd: %.2f", WxConditions[0].Windspeed);
-        WxConditions[0].Winddir = current["wind_deg"];
-        log_v("   WDir: %.2f", WxConditions[0].Winddir);
+        WxConditions.Sunrise = current["sunrise"];
+        log_v("   SRis: %d", WxConditions.Sunrise);
+        WxConditions.Sunset = current["sunset"];
+        log_v("   SSet: %d", WxConditions.Sunset);
+        WxConditions.Temperature = current["temp"];
+        log_v("   Temp: %.2f", WxConditions.Temperature);
+        WxConditions.FeelsLike = current["feels_like"];
+        log_v("   FLik: %.2f", WxConditions.FeelsLike);
+        WxConditions.Pressure = current["pressure"];
+        log_v("   Pres: %.2f", WxConditions.Pressure);
+        WxConditions.Humidity = current["humidity"];
+        log_v("   Humi: %.2f", WxConditions.Humidity);
+        WxConditions.DewPoint = current["dew_point"];
+        log_v("   DPoi: %.2f", WxConditions.DewPoint);
+        WxConditions.UVI = current["uvi"];
+        log_v("   UVin: %.2f", WxConditions.UVI);
+        WxConditions.Cloudcover = current["clouds"];
+        log_v("   CCov: %d", WxConditions.Cloudcover);
+        WxConditions.Visibility = current["visibility"];
+        log_v("   Visi: %d", WxConditions.Visibility);
+        WxConditions.Windspeed = current["wind_speed"];
+        log_v("   WSpd: %.2f", WxConditions.Windspeed);
+        WxConditions.Winddir = current["wind_deg"];
+        log_v("   WDir: %.2f", WxConditions.Winddir);
         JsonObject current_weather = current["weather"][0];
         String Description = current_weather["description"];
         String Icon = current_weather["icon"];
-        WxConditions[0].Forecast0 = Description;
-        log_v("   Fore: %s", WxConditions[0].Forecast0.c_str());
-        WxConditions[0].Icon = Icon;
-        log_v("   Icon: %s", WxConditions[0].Icon.c_str());
+        WxConditions.Forecast0 = Description;
+        log_v("   Fore: %s", WxConditions.Forecast0.c_str());
+        WxConditions.Icon = Icon;
+        log_v("   Icon: %s", WxConditions.Icon.c_str());
     } else {
         log_d("Receiving Forecast period - ");
         JsonArray list = root["list"];
@@ -318,22 +320,22 @@ bool DecodeWeather(WiFiClient &json, const bool forecast) {
             WxForecast[r].Snowfall = list[r]["snow"]["3h"].as<float>();
             log_v("   Snow: %.2f", WxForecast[r].Snowfall);
             if(r < 8) {
-                if(WxForecast[r].High > WxConditions[0].High)
-                    WxConditions[0].High = WxForecast[r].High;
-                if(WxForecast[r].Low < WxConditions[0].Low)
-                    WxConditions[0].Low = WxForecast[r].Low;
+                if(WxForecast[r].High > WxConditions.High)
+                    WxConditions.High = WxForecast[r].High;
+                if(WxForecast[r].Low < WxConditions.Low)
+                    WxConditions.Low = WxForecast[r].Low;
             }
         }
 
         float pressure_trend = WxForecast[0].Pressure - WxForecast[2].Pressure;
         pressure_trend = ((int)(pressure_trend * 10)) / 10.0;
-        WxConditions[0].Trend = PressureTrend::same;
+        WxConditions.Trend = PressureTrend::same;
         if(pressure_trend > 0)
-            WxConditions[0].Trend = PressureTrend::rising;
+            WxConditions.Trend = PressureTrend::rising;
         if(pressure_trend < 0)
-            WxConditions[0].Trend = PressureTrend::falling;
+            WxConditions.Trend = PressureTrend::falling;
         if(pressure_trend == 0)
-            WxConditions[0].Trend = PressureTrend::zero;
+            WxConditions.Trend = PressureTrend::zero;
 
         if(!Metric)
             Convert_Readings_to_Imperial();
@@ -419,7 +421,7 @@ String TitleCase(String text) {
 void DisplayWeather() {
     DisplayStatusSection(600, 20, wifi_signal);
     DisplayGeneralInfoSection();
-    DisplayDisplayWindSection(137, 150, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
+    DisplayDisplayWindSection(137, 150, WxConditions.Winddir, WxConditions.Windspeed, 100);
     DisplayAstronomySection(5, 252);
     DisplayMainWeatherSection(320, 110);
     DisplayWeatherIcon(835, 140);
@@ -434,7 +436,7 @@ void DisplayGeneralInfoSection() {
     drawString(500, 2, Date_str + "  @   " + Time_str, Alignment::LEFT);
 }
 
-void DisplayWeatherIcon(int x, int y) { DisplayConditionsSection(x, y, WxConditions[0].Icon, LargeIcon); }
+void DisplayWeatherIcon(int x, int y) { DisplayConditionsSection(x, y, WxConditions.Icon, LargeIcon); }
 
 void DisplayMainWeatherSection(int x, int y) {
     setFont(OpenSans8B);
@@ -522,24 +524,24 @@ String WindDegToOrdinalDirection(float winddirection) {
 void DisplayTempHumiPressSection(int x, int y) {
     setFont(OpenSans18B);
     drawString(x - 30, y,
-               String(WxConditions[0].Temperature, 1) + "°   " + String(WxConditions[0].Humidity, 0) + "%",
+               String(WxConditions.Temperature, 1) + "°   " + String(WxConditions.Humidity, 0) + "%",
                Alignment::LEFT);
     setFont(OpenSans12B);
-    DrawPressureAndTrend(x + 195, y + 15, WxConditions[0].Pressure, WxConditions[0].Trend);
+    DrawPressureAndTrend(x + 195, y + 15, WxConditions.Pressure, WxConditions.Trend);
     int Yoffset = 42;
-    if(WxConditions[0].Windspeed > 0) {
-        drawString(x - 30, y + Yoffset, String(WxConditions[0].FeelsLike, 1) + "° FL", Alignment::LEFT);
+    if(WxConditions.Windspeed > 0) {
+        drawString(x - 30, y + Yoffset, String(WxConditions.FeelsLike, 1) + "° FL", Alignment::LEFT);
         Yoffset += 30;
     }
     drawString(x - 30, y + Yoffset,
-               String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "° Hi/Lo",
+               String(WxConditions.High, 0) + "° | " + String(WxConditions.Low, 0) + "° Hi/Lo",
                Alignment::LEFT);
 }
 
 void DisplayForecastTextSection(int x, int y) {
 #define lineWidth 34
     setFont(OpenSans12B);
-    String Wx_Description = WxConditions[0].Forecast0;
+    String Wx_Description = WxConditions.Forecast0;
     Wx_Description.replace(".", "");
     int spaceRemaining = 0, p = 0, charCount = 0, Width = lineWidth;
     while(p < Wx_Description.length()) {
@@ -565,10 +567,10 @@ void DisplayForecastTextSection(int x, int y) {
 void DisplayVisiCCoverUVISection(int x, int y) {
     setFont(OpenSans12B);
     log_v("==========================");
-    log_v("Visibility: %d", WxConditions[0].Visibility);
-    Visibility(x + 5, y, String(WxConditions[0].Visibility) + "M");
-    CloudCover(x + 155, y, WxConditions[0].Cloudcover);
-    Display_UVIndexLevel(x + 265, y, WxConditions[0].UVI);
+    log_v("Visibility: %d", WxConditions.Visibility);
+    Visibility(x + 5, y, String(WxConditions.Visibility) + "M");
+    CloudCover(x + 155, y, WxConditions.Cloudcover);
+    Display_UVIndexLevel(x + 265, y, WxConditions.UVI);
 }
 
 void Display_UVIndexLevel(int x, int y, float UVI) {
@@ -592,7 +594,7 @@ void DisplayForecastWeather(int x, int y, int index, int fwidth) {
     DisplayConditionsSection(x + fwidth / 2 - 5, y + 85, WxForecast[index].Icon, SmallIcon);
     setFont(OpenSans10B);
     drawString(x + fwidth / 2, y + 30,
-               String(ConvertUnixTime(WxForecast[index].Dt + WxConditions[0].FTimezone).substring(0, 5)),
+               String(ConvertUnixTime(WxForecast[index].Dt + WxConditions.FTimezone).substring(0, 5)),
                Alignment::CENTER);
     drawString(x + fwidth / 2, y + 130,
                String(WxForecast[index].High, 0) + "°/" + String(WxForecast[index].Low, 0) + "°",
@@ -616,8 +618,8 @@ void DisplayAstronomySection(int x, int y) {
     DrawMoonImage(x + 10, y + 23);
     DrawMoon(x - 28, y - 15, 75, now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900,
              NorthenHemisphere);
-    drawString(x + 115, y + 40, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), Alignment::LEFT);
-    drawString(x + 115, y + 80, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), Alignment::LEFT);
+    drawString(x + 115, y + 40, ConvertUnixTime(WxConditions.Sunrise).substring(0, 5), Alignment::LEFT);
+    drawString(x + 115, y + 80, ConvertUnixTime(WxConditions.Sunset).substring(0, 5), Alignment::LEFT);
     DrawSunriseImage(x + 180, y + 20);
     DrawSunsetImage(x + 180, y + 60);
 }
@@ -825,27 +827,21 @@ void DrawRSSI(int x, int y, int rssi) {
 }
 
 boolean UpdateLocalTime() {
-    struct tm timeinfo;
-    char time_output[30], day_output[30], update_time[30];
+    char time_output[30], day_output[30];
     while(!getLocalTime(&timeinfo, 5000)) {
         log_e("Failed to obtain time");
         return false;
     }
-    CurrentHour = timeinfo.tm_hour;
-    CurrentMin = timeinfo.tm_min;
-    CurrentSec = timeinfo.tm_sec;
 
     char buf[64];
     strftime(buf, 64, "%a %b %d %Y   %H:%M:%S", &timeinfo);
     if(Metric) {
         sprintf(day_output, "%s, %02u %s %04u", weekday_D[timeinfo.tm_wday], timeinfo.tm_mday,
                 month_M[timeinfo.tm_mon], (timeinfo.tm_year) + 1900);
-        strftime(update_time, sizeof(update_time), "%H:%M:%S", &timeinfo);
-        sprintf(time_output, "%s", update_time);
+        strftime(time_output, sizeof(time_output), "%H:%M:%S", &timeinfo);
     } else {
         strftime(day_output, sizeof(day_output), "%a %b-%d-%Y", &timeinfo);
-        strftime(update_time, sizeof(update_time), "%r", &timeinfo);
-        sprintf(time_output, "%s", update_time);
+        strftime(time_output, sizeof(time_output), "%r", &timeinfo);
     }
     Date_str = day_output;
     Time_str = time_output;
