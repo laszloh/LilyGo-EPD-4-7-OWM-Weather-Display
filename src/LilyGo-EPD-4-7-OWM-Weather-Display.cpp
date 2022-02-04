@@ -74,9 +74,9 @@ void InitialiseSystem();
 void loop();
 void setup();
 void Convert_Readings_to_Imperial();
-bool DecodeWeather(WiFiClient &json, String Type);
+bool DecodeWeather(WiFiClient &json, const bool forecast);
 String ConvertUnixTime(int unix_time);
-bool obtainWeatherData(WiFiClient &client, const String &RequestType);
+bool obtainWeatherData(WiFiClient &client, const bool forecast);
 constexpr float mm_to_inches(float value_mm);
 constexpr float hPa_to_inHg(float value_hPa);
 constexpr int JulianDate(int d, int m, int y);
@@ -218,7 +218,8 @@ void setup() {
             byte Attempts = 1;
             bool RxWeather = false;
             bool RxForecast = false;
-            WiFiClient client;
+            WiFiClientSecure client;
+            client.setCACert(caCertOWM);
             while((RxWeather == false || RxForecast == false) && Attempts <= 2) {
                 if(RxWeather == false)
                     RxWeather = obtainWeatherData(client, "onecall");
@@ -246,7 +247,7 @@ void Convert_Readings_to_Imperial() {
     WxForecast[0].Snowfall = mm_to_inches(WxForecast[0].Snowfall);
 }
 
-bool DecodeWeather(WiFiClient &json, String Type) {
+bool DecodeWeather(WiFiClient &json, const bool forecast) {
     log_i("Deserializing weather data");
     DynamicJsonDocument doc(64 * 1024);
     DeserializationError error = deserializeJson(doc, json);
@@ -256,8 +257,8 @@ bool DecodeWeather(WiFiClient &json, String Type) {
     }
 
     JsonObject root = doc.as<JsonObject>();
-    log_d("Decoding %s data", Type.c_str());
-    if(Type == "onecall") {
+    log_d("Decoding %s data", (forecast ? "forecast" : "oncall"));
+    if(!forecast) {
 
         WxConditions[0].High = -50;
         WxConditions[0].Low = 50;
@@ -294,9 +295,7 @@ bool DecodeWeather(WiFiClient &json, String Type) {
         log_v("   Fore: %s", WxConditions[0].Forecast0.c_str());
         WxConditions[0].Icon = Icon;
         log_v("   Icon: %s", WxConditions[0].Icon.c_str());
-    }
-    if(Type == "forecast") {
-
+    } else {
         log_d("Receiving Forecast period - ");
         JsonArray list = root["list"];
         for(auto r = 0; r < max_readings; r++) {
@@ -355,29 +354,31 @@ String ConvertUnixTime(int unix_time) {
     return output;
 }
 
-bool obtainWeatherData(WiFiClient &client, const String &RequestType) {
+bool obtainWeatherData(WiFiClient &client, const bool forecast) {
     constexpr const char *units = (Metric ? "metric" : "imperial");
+    const String forecastRequest = String("/data/2.5/forecast?lat=") + Latitude + "&lon=" + Longitude
+        + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
+    const String oncallRequest = String("/data/2.5/forecast?lat=") + Latitude + "&lon=" + Longitude
+        + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language
+        + "&exclude=minutely,hourly,alerts,daily";
+
+    bool ret = true;
     client.stop();
     HTTPClient http;
 
-    String uri = "/data/2.5/" + RequestType + "?lat=" + Latitude + "&lon=" + Longitude + "&appid=" + apikey
-        + "&mode=json&units=" + units + "&lang=" + Language;
-    if(RequestType == "onecall")
-        uri += "&exclude=minutely,hourly,alerts,daily";
-    http.begin(client, server, 80, uri);
+    const char *uri = (forecast) ? forecastRequest.c_str() : oncallRequest.c_str();
+    log_v("HTTPS request: %s", uri);
+    http.begin(client, server, 443, uri);
     int httpCode = http.GET();
     if(httpCode == HTTP_CODE_OK) {
-        if(!DecodeWeather(http.getStream(), RequestType))
-            return false;
-        client.stop();
+        ret = DecodeWeather(http.getStream(), forecast);
     } else {
         log_e("connection failed, error: %s (%d)", http.errorToString(httpCode).c_str(), httpCode);
-        client.stop();
-        http.end();
-        return false;
+        ret = false;
     }
+    client.stop();
     http.end();
-    return true;
+    return ret;
 }
 
 constexpr float mm_to_inches(float value_mm) { return 0.0393701 * value_mm; }
@@ -564,7 +565,7 @@ void DisplayForecastTextSection(int x, int y) {
 void DisplayVisiCCoverUVISection(int x, int y) {
     setFont(OpenSans12B);
     log_v("==========================");
-    log_v("Visibility: %d",WxConditions[0].Visibility);
+    log_v("Visibility: %d", WxConditions[0].Visibility);
     Visibility(x + 5, y, String(WxConditions[0].Visibility) + "M");
     CloudCover(x + 155, y, WxConditions[0].Cloudcover);
     Display_UVIndexLevel(x + 265, y, WxConditions[0].UVI);
@@ -779,8 +780,7 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 }
 
 void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
-    drawString(x + 25, y - 10, String(pressure, (Metric ? 0 : 1)) + (Metric ? "hPa" : "in"),
-               Alignment::LEFT);
+    drawString(x + 25, y - 10, String(pressure, (Metric ? 0 : 1)) + (Metric ? "hPa" : "in"), Alignment::LEFT);
     if(slope == "+") {
         DrawSegment(x, y, 0, 0, 8, -8, 8, -8, 16, 0);
         DrawSegment(x - 1, y, 0, 0, 8, -8, 8, -8, 16, 0);
