@@ -65,6 +65,7 @@ long Delta = 30;
 
 GFXfont currentFont;
 uint8_t *framebuffer;
+
 void BeginSleep();
 boolean SetupTime();
 uint8_t StartWiFi();
@@ -76,10 +77,10 @@ void Convert_Readings_to_Imperial();
 bool DecodeWeather(WiFiClient &json, String Type);
 String ConvertUnixTime(int unix_time);
 bool obtainWeatherData(WiFiClient &client, const String &RequestType);
-float mm_to_inches(float value_mm);
-float hPa_to_inHg(float value_hPa);
-int JulianDate(int d, int m, int y);
-float SumOfPrecip(float DataArray[], int readings);
+constexpr float mm_to_inches(float value_mm);
+constexpr float hPa_to_inHg(float value_hPa);
+constexpr int JulianDate(int d, int m, int y);
+constexpr float SumOfPrecip(float DataArray[], int readings);
 String TitleCase(String text);
 void DisplayWeather();
 void DisplayGeneralInfoSection();
@@ -94,8 +95,8 @@ void Display_UVIndexLevel(int x, int y, float UVI);
 void DisplayForecastWeather(int x, int y, int index, int fwidth);
 double NormalizedMoonPhase(int d, int m, int y);
 void DisplayAstronomySection(int x, int y);
-void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisphere);
-String MoonPhase(int d, int m, int y, String hemisphere);
+void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, bool northenHemisphere);
+String MoonPhase(int d, int m, int y, bool northenHemisphere);
 void DisplayForecastSection(int x, int y);
 void DisplayGraphSection(int x, int y);
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize);
@@ -263,60 +264,60 @@ bool DecodeWeather(WiFiClient &json, String Type) {
         WxConditions[0].FTimezone = doc["timezone_offset"];
         JsonObject current = doc["current"];
         WxConditions[0].Sunrise = current["sunrise"];
-        log_d("   SRis: %d", WxConditions[0].Sunrise);
+        log_v("   SRis: %d", WxConditions[0].Sunrise);
         WxConditions[0].Sunset = current["sunset"];
-        log_d("   SSet: %d", WxConditions[0].Sunset);
+        log_v("   SSet: %d", WxConditions[0].Sunset);
         WxConditions[0].Temperature = current["temp"];
-        log_d("   Temp: %.2f", WxConditions[0].Temperature);
+        log_v("   Temp: %.2f", WxConditions[0].Temperature);
         WxConditions[0].FeelsLike = current["feels_like"];
-        log_d("   FLik: %.2f", WxConditions[0].FeelsLike);
+        log_v("   FLik: %.2f", WxConditions[0].FeelsLike);
         WxConditions[0].Pressure = current["pressure"];
-        log_d("   Pres: %.2f", WxConditions[0].Pressure);
+        log_v("   Pres: %.2f", WxConditions[0].Pressure);
         WxConditions[0].Humidity = current["humidity"];
-        log_d("   Humi: %.2f", WxConditions[0].Humidity);
+        log_v("   Humi: %.2f", WxConditions[0].Humidity);
         WxConditions[0].DewPoint = current["dew_point"];
-        log_d("   DPoi: %.2f", WxConditions[0].DewPoint);
+        log_v("   DPoi: %.2f", WxConditions[0].DewPoint);
         WxConditions[0].UVI = current["uvi"];
-        log_d("   UVin: %.2f", WxConditions[0].UVI);
+        log_v("   UVin: %.2f", WxConditions[0].UVI);
         WxConditions[0].Cloudcover = current["clouds"];
-        log_d("   CCov: %d", WxConditions[0].Cloudcover);
+        log_v("   CCov: %d", WxConditions[0].Cloudcover);
         WxConditions[0].Visibility = current["visibility"];
-        log_d("   Visi: %d", WxConditions[0].Visibility);
+        log_v("   Visi: %d", WxConditions[0].Visibility);
         WxConditions[0].Windspeed = current["wind_speed"];
-        log_d("   WSpd: %.2f", WxConditions[0].Windspeed);
+        log_v("   WSpd: %.2f", WxConditions[0].Windspeed);
         WxConditions[0].Winddir = current["wind_deg"];
-        log_d("   WDir: %.2f", WxConditions[0].Winddir);
+        log_v("   WDir: %.2f", WxConditions[0].Winddir);
         JsonObject current_weather = current["weather"][0];
         String Description = current_weather["description"];
         String Icon = current_weather["icon"];
         WxConditions[0].Forecast0 = Description;
-        log_d("   Fore: %s", WxConditions[0].Forecast0.c_str());
+        log_v("   Fore: %s", WxConditions[0].Forecast0.c_str());
         WxConditions[0].Icon = Icon;
-        log_d("   Icon: %s", WxConditions[0].Icon.c_str());
+        log_v("   Icon: %s", WxConditions[0].Icon.c_str());
     }
     if(Type == "forecast") {
 
-        Serial.print(F("\nReceiving Forecast period - "));
+        log_d("Receiving Forecast period - ");
         JsonArray list = root["list"];
         for(auto r = 0; r < max_readings; r++) {
-            log_d("   Period-%d--------------", r);
+            log_v("   Period-%d--------------", r);
             WxForecast[r].Dt = list[r]["dt"].as<int>();
             WxForecast[r].Temperature = list[r]["main"]["temp"].as<float>();
-            log_d("   Temp: %.2f", WxForecast[r].Temperature);
+            log_v("   Temp: %.2f", WxForecast[r].Temperature);
             WxForecast[r].Low = list[r]["main"]["temp_min"].as<float>();
-            log_d("   TLow: %.2f", WxForecast[r].Low);
+            log_v("   TLow: %.2f", WxForecast[r].Low);
             WxForecast[r].High = list[r]["main"]["temp_max"].as<float>();
-            log_d("   THig: %.2f", WxForecast[r].High);
+            log_v("   THig: %.2f", WxForecast[r].High);
             WxForecast[r].Pressure = list[r]["main"]["pressure"].as<float>();
-            log_d("   Pres: %.2f", WxForecast[r].Pressure);
+            log_v("   Pres: %.2f", WxForecast[r].Pressure);
             WxForecast[r].Humidity = list[r]["main"]["humidity"].as<float>();
-            log_d("   Humi: %.2f", WxForecast[r].Humidity);
+            log_v("   Humi: %.2f", WxForecast[r].Humidity);
             WxForecast[r].Icon = list[r]["weather"][0]["icon"].as<const char *>();
-            log_d("   Icon: %s", WxForecast[r].Icon.c_str());
+            log_v("   Icon: %s", WxForecast[r].Icon.c_str());
             WxForecast[r].Rainfall = list[r]["rain"]["3h"].as<float>();
-            log_d("   Rain: %.2f", WxForecast[r].Rainfall);
+            log_v("   Rain: %.2f", WxForecast[r].Rainfall);
             WxForecast[r].Snowfall = list[r]["snow"]["3h"].as<float>();
-            log_d("   Snow: %.2f", WxForecast[r].Snowfall);
+            log_v("   Snow: %.2f", WxForecast[r].Snowfall);
             if(r < 8) {
                 if(WxForecast[r].High > WxConditions[0].High)
                     WxConditions[0].High = WxForecast[r].High;
@@ -335,7 +336,7 @@ bool DecodeWeather(WiFiClient &json, String Type) {
         if(pressure_trend == 0)
             WxConditions[0].Trend = "0";
 
-        if(Units == "I")
+        if(!Metric)
             Convert_Readings_to_Imperial();
     }
     return true;
@@ -346,7 +347,7 @@ String ConvertUnixTime(int unix_time) {
     time_t tm = unix_time;
     struct tm *now_tm = localtime(&tm);
     char output[40];
-    if(Units == "M") {
+    if(Metric) {
         strftime(output, sizeof(output), "%H:%M %d/%m/%y", now_tm);
     } else {
         strftime(output, sizeof(output), "%I:%M%P %m/%d/%y", now_tm);
@@ -355,7 +356,7 @@ String ConvertUnixTime(int unix_time) {
 }
 
 bool obtainWeatherData(WiFiClient &client, const String &RequestType) {
-    const String units = (Units == "M" ? "metric" : "imperial");
+    constexpr const char *units = (Metric ? "metric" : "imperial");
     client.stop();
     HTTPClient http;
 
@@ -384,16 +385,15 @@ constexpr float mm_to_inches(float value_mm) { return 0.0393701 * value_mm; }
 constexpr float hPa_to_inHg(float value_hPa) { return 0.02953 * value_hPa; }
 
 constexpr int JulianDate(int d, int m, int y) {
-    int mm, yy, k1, k2, k3, j;
-    yy = y - (int)((12 - m) / 10);
-    mm = m + 9;
+    int yy = y - (int)((12 - m) / 10);
+    int mm = m + 9;
     if(mm >= 12)
         mm = mm - 12;
-    k1 = (int)(365.25 * (yy + 4712));
-    k2 = (int)(30.6001 * mm + 0.5);
-    k3 = (int)((int)((yy / 100) + 49) * 0.75) - 38;
+    int k1 = (int)(365.25 * (yy + 4712));
+    int k2 = (int)(30.6001 * mm + 0.5);
+    int k3 = (int)((int)((yy / 100) + 49) * 0.75) - 38;
 
-    j = k1 + k2 + d + 59 + 1;
+    int j = k1 + k2 + d + 59 + 1;
     if(j > 2299160)
         j = j - k3;
     return j;
@@ -479,7 +479,7 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
     setFont(OpenSans24B);
     drawString(x + 3, y - 18, String(windspeed, 1), Alignment::CENTER);
     setFont(OpenSans12B);
-    drawString(x, y + 25, (Units == "M" ? "m/s" : "mph"), Alignment::CENTER);
+    drawString(x, y + 25, (Metric ? "m/s" : "mph"), Alignment::CENTER);
 }
 
 String WindDegToOrdinalDirection(float winddirection) {
@@ -553,8 +553,7 @@ void DisplayForecastTextSection(int x, int y) {
         charCount++;
     }
     if(WxForecast[0].Rainfall > 0)
-        Wx_Description
-            += " (" + String(WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
+        Wx_Description += " (" + String(WxForecast[0].Rainfall, 1) + String((Metric ? "mm" : "in")) + ")";
     String Line1 = Wx_Description.substring(0, Wx_Description.indexOf("~"));
     String Line2 = Wx_Description.substring(Wx_Description.indexOf("~") + 1);
     drawString(x + 30, y + 5, TitleCase(Line1), Alignment::LEFT);
@@ -564,8 +563,8 @@ void DisplayForecastTextSection(int x, int y) {
 
 void DisplayVisiCCoverUVISection(int x, int y) {
     setFont(OpenSans12B);
-    Serial.print("==========================");
-    Serial.println(WxConditions[0].Visibility);
+    log_v("==========================");
+    log_v("Visibility: %d",WxConditions[0].Visibility);
     Visibility(x + 5, y, String(WxConditions[0].Visibility) + "M");
     CloudCover(x + 155, y, WxConditions[0].Cloudcover);
     Display_UVIndexLevel(x + 265, y, WxConditions[0].UVI);
@@ -611,20 +610,20 @@ void DisplayAstronomySection(int x, int y) {
     time_t now = time(NULL);
     struct tm *now_utc = gmtime(&now);
     drawString(x + 5, y + 102,
-               MoonPhase(now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere),
+               MoonPhase(now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, NorthenHemisphere),
                Alignment::LEFT);
     DrawMoonImage(x + 10, y + 23);
-    DrawMoon(x - 28, y - 15, 75, now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere);
+    DrawMoon(x - 28, y - 15, 75, now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900,
+             NorthenHemisphere);
     drawString(x + 115, y + 40, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), Alignment::LEFT);
     drawString(x + 115, y + 80, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), Alignment::LEFT);
     DrawSunriseImage(x + 180, y + 20);
     DrawSunsetImage(x + 180, y + 60);
 }
 
-void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisphere) {
+void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, bool northenHemisphere) {
     double Phase = NormalizedMoonPhase(dd, mm, yy);
-    hemisphere.toLowerCase();
-    if(hemisphere == "south")
+    if(!northenHemisphere) // we are in the southern
         Phase = 1 - Phase;
 
     fillCircle(x + diameter - 1, y + diameter, diameter / 2 + 1, Color::DarkGrey);
@@ -656,7 +655,7 @@ void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisph
     drawCircle(x + diameter - 1, y + diameter, diameter / 2, Color::Grey);
 }
 
-String MoonPhase(int d, int m, int y, String hemisphere) {
+String MoonPhase(int d, int m, int y, bool northenHemisphere) {
     int c, e;
     double jd;
     int b;
@@ -673,7 +672,7 @@ String MoonPhase(int d, int m, int y, String hemisphere) {
     jd -= b;
     b = jd * 8 + 0.5;
     b = b & 7;
-    if(hemisphere == "south")
+    if(!northenHemisphere)
         b = 7 - b;
     if(b == 0)
         return TXT_MOON_NEW;
@@ -705,18 +704,9 @@ void DisplayForecastSection(int x, int y) {
 void DisplayGraphSection(int x, int y) {
     int r = 0;
     do {
-        if(Units == "I")
-            pressure_readings[r] = WxForecast[r].Pressure * 0.02953;
-        else
-            pressure_readings[r] = WxForecast[r].Pressure;
-        if(Units == "I")
-            rain_readings[r] = WxForecast[r].Rainfall * 0.0393701;
-        else
-            rain_readings[r] = WxForecast[r].Rainfall;
-        if(Units == "I")
-            snow_readings[r] = WxForecast[r].Snowfall * 0.0393701;
-        else
-            snow_readings[r] = WxForecast[r].Snowfall;
+        pressure_readings[r] = (Metric ? WxForecast[r].Pressure : hPa_to_inHg(WxForecast[r].Pressure));
+        rain_readings[r] = (Metric ? WxForecast[r].Rainfall : mm_to_inches(WxForecast[r].Rainfall));
+        snow_readings[r] = (Metric ? WxForecast[r].Snowfall : mm_to_inches(WxForecast[r].Snowfall));
         temperature_readings[r] = WxForecast[r].Temperature;
         humidity_readings[r] = WxForecast[r].Humidity;
         r++;
@@ -726,22 +716,22 @@ void DisplayGraphSection(int x, int y) {
     int gy = (SCREEN_HEIGHT - gheight - 30);
     int gap = gwidth + gx;
 
-    DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN,
+    DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Metric ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN,
               pressure_readings, max_readings, true, false);
-    DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F,
+    DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30, Metric ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F,
               temperature_readings, max_readings, true, false);
     DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100, TXT_HUMIDITY_PERCENT, humidity_readings,
               max_readings, false, false);
     if(SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings))
-        DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30,
-                  Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, true, true);
+        DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Metric ? TXT_RAINFALL_MM : TXT_RAINFALL_IN,
+                  rain_readings, max_readings, true, true);
     else
-        DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30,
-                  Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, max_readings, true, true);
+        DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Metric ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN,
+                  snow_readings, max_readings, true, true);
 }
 
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
-    Serial.println("Icon name: " + IconName);
+    log_v("Icon name: %s", IconName);
     if(IconName == "01d" || IconName == "01n")
         ClearSky(x, y, IconSize, IconName);
     else if(IconName == "02d" || IconName == "02n")
@@ -789,7 +779,7 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 }
 
 void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
-    drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? "hPa" : "in"),
+    drawString(x + 25, y - 10, String(pressure, (Metric ? 0 : 1)) + (Metric ? "hPa" : "in"),
                Alignment::LEFT);
     if(slope == "+") {
         DrawSegment(x, y, 0, 0, 8, -8, 8, -8, 16, 0);
@@ -832,15 +822,16 @@ boolean UpdateLocalTime() {
     struct tm timeinfo;
     char time_output[30], day_output[30], update_time[30];
     while(!getLocalTime(&timeinfo, 5000)) {
-        Serial.println("Failed to obtain time");
+        log_e("Failed to obtain time");
         return false;
     }
     CurrentHour = timeinfo.tm_hour;
     CurrentMin = timeinfo.tm_min;
     CurrentSec = timeinfo.tm_sec;
 
-    Serial.println(&timeinfo, "%a %b %d %Y   %H:%M:%S");
-    if(Units == "M") {
+    char buf[64];
+    strftime(buf, 64, "%a %b %d %Y   %H:%M:%S", &timeinfo);
+    if(Metric) {
         sprintf(day_output, "%s, %02u %s %04u", weekday_D[timeinfo.tm_wday], timeinfo.tm_mday,
                 month_M[timeinfo.tm_mon], (timeinfo.tm_year) + 1900);
         strftime(update_time, sizeof(update_time), "%H:%M:%S", &timeinfo);
@@ -861,12 +852,12 @@ void DrawBattery(int x, int y) {
     esp_adc_cal_value_t val_type
         = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &adc_chars);
     if(val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
-        Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
+        log_d("eFuse Vref:%u mV", adc_chars.vref);
         vref = adc_chars.vref;
     }
     float voltage = analogRead(36) / 4096.0 * 6.566 * (vref / 1000.0);
     if(voltage > 1) {
-        Serial.println("\nVoltage = " + String(voltage));
+        log_d("Voltage: %.2f", voltage);
         percentage = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3)
             + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
         if(voltage >= 4.20)
