@@ -3,10 +3,17 @@
 
 #include <Arduino.h>
 
+enum class PressureTrend {
+  same,
+  rising,
+  falling,
+  zero
+};
+
 typedef struct { // For current Day and Day 1, 2, 3, etc
   int    Dt;
   String Icon;
-  String Trend;
+  PressureTrend Trend;
   String Forecast0;
   String Description;
   float  Temperature;
