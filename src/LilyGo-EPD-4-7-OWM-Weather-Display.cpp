@@ -2,6 +2,7 @@
 #include "esp_adc_cal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "zlib/zlib.h"
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
@@ -15,9 +16,6 @@
 #include "config.h"
 #include "forecast_record.h"
 #include "lang.h"
-
-#define SCREEN_WIDTH EPD_WIDTH
-#define SCREEN_HEIGHT EPD_HEIGHT
 
 enum class Alignment { LEFT, RIGHT, CENTER };
 enum class Color : uint8_t { White = 0xFF, LightGrey = 0xBB, Grey = 0x88, DarkGrey = 0x44, Black = 0x00 };
@@ -34,7 +32,7 @@ String Time_str = "--:--:--";
 String Date_str = "-- --- ----";
 int wifi_signal;
 int vref = 1100;
-RTC_DATA_ATTR struct tm timeinfo;
+struct tm timeinfo;
 
 constexpr int max_readings = 24;
 
@@ -47,12 +45,11 @@ float humidity_readings[max_readings] = {0};
 float rain_readings[max_readings] = {0};
 float snow_readings[max_readings] = {0};
 
-long SleepDuration = 60;
-int WakeupHour = 8;
-int SleepHour = 23;
-long StartTime = 0;
-long SleepTimer = 0;
-long Delta = 30;
+constexpr uint32_t SleepDuration = 30 * 60; // in seconds
+constexpr int WakeupHour = 7;
+constexpr int SleepHour = 23;
+uint32_t SleepTimer = 0;
+constexpr long Delta = 30;
 
 
 #include "moon.h"
@@ -66,10 +63,17 @@ long Delta = 30;
 #include "uvi.h"
 
 GFXfont currentFont;
+
+constexpr size_t screenWidth = EPD_WIDTH;
+constexpr size_t screenHeight = EPD_HEIGHT;
+
+constexpr size_t frameBufferSize = (screenWidth * screenHeight) / 2;
 uint8_t *framebuffer;
 
+HTTPClient http;
+
 void BeginSleep();
-boolean SetupTime();
+bool SetupTime();
 uint8_t StartWiFi();
 void StopWiFi();
 void InitialiseSystem();
@@ -78,7 +82,7 @@ void setup();
 void Convert_Readings_to_Imperial();
 bool DecodeWeather(WiFiClient &json, const bool forecast);
 String ConvertUnixTime(int unix_time);
-bool obtainWeatherData(WiFiClient &client, const bool forecast);
+bool obtainWeatherData(WiFiClient &client, const bool forecast = true, const bool keepAlive = true);
 constexpr float mm_to_inches(float value_mm);
 constexpr float hPa_to_inHg(float value_hPa);
 constexpr int JulianDate(int d, int m, int y);
@@ -107,7 +111,7 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 void DrawPressureAndTrend(int x, int y, float pressure, PressureTrend slope);
 void DisplayStatusSection(int x, int y, int rssi);
 void DrawRSSI(int x, int y, int rssi);
-boolean UpdateLocalTime();
+bool UpdateLocalTime();
 void DrawBattery(int x, int y);
 void addcloud(int x, int y, int scale, int linesize);
 void addrain(int x, int y, int scale, bool IconSize);
@@ -134,7 +138,7 @@ void DrawSunriseImage(int x, int y);
 void DrawSunsetImage(int x, int y);
 void DrawUVI(int x, int y);
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title,
-               float DataArray[], int readings, boolean auto_scale, boolean barchart_mode);
+               float DataArray[], int readings, bool auto_scale, bool barchart_mode);
 void drawString(int x, int y, String text, Alignment align);
 void fillCircle(int x, int y, int r, Color color);
 void drawFastHLine(int16_t x0, int16_t y0, int length, Color color);
@@ -148,18 +152,19 @@ void drawPixel(int x, int y, Color color);
 void setFont(GFXfont const &font);
 void edp_update();
 
-void BeginSleep() {
+__attribute__((noreturn)) void BeginSleep() {
     epd_poweroff_all();
-    UpdateLocalTime();
-    SleepTimer = (SleepDuration * 60 - ((timeinfo.tm_min % SleepDuration) * 60 + timeinfo.tm_sec)) + Delta;
-    esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL);
-    log_d("Awake for : %d ms", millis() - StartTime);
-    log_d("Entering %d (secs) of sleep time", SleepTimer);
+    uint32_t wakeTimeMs = millis();
+    // modify SleepTimer for wake time
+    SleepTimer = (SleepDuration * 1000) - wakeTimeMs;
+    esp_sleep_enable_timer_wakeup(SleepTimer * 1000);
+    log_d("Awake for : %d ms", wakeTimeMs);
+    log_d("Entering %d (secs) of sleep time", SleepTimer / 1000);
     log_i("Starting deep-sleep period...");
     esp_deep_sleep_start();
 }
 
-boolean SetupTime() {
+bool SetupTime() {
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer, "time.nist.gov");
     setenv("TZ", Timezone, 1);
     tzset();
@@ -196,19 +201,41 @@ void StopWiFi() {
 }
 
 void InitialiseSystem() {
-    StartTime = millis();
     Serial.begin(115200);
     log_i("Starting...");
     epd_init();
-    framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
-    if(!framebuffer)
+
+    log_d("Total heap: %d", ESP.getHeapSize());
+    log_d("Free heap: %d", ESP.getFreeHeap());
+    log_d("Total PSRAM: %d", ESP.getPsramSize());
+    log_d("Free PSRAM: %d", ESP.getFreePsram());
+
+    esp_reset_reason_t reason = esp_reset_reason();
+    log_d("ESP reset reason: %d", reason);
+
+    time_t now = time(NULL);
+    log_v("local time: %d", time(NULL));
+
+    char strftime_buf[64];
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+    log_v("The current date/time is: %s", strftime_buf);
+
+    framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), frameBufferSize);
+    if(!framebuffer) {
+        log_e("!!!!!!!!!!!!!!!!!!!!");
         log_e("Memory alloc failed!");
-    memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+        log_e("!!!!!!!!!!!!!!!!!!!!");
+        log_e("Going to sleep");
+        BeginSleep();
+    }
+    memset(framebuffer, to_underlying(Color::White), frameBufferSize);
 }
 
-void loop() { }
+__attribute__((noreturn)) void loop() { BeginSleep(); }
 
-void setup() {
+__attribute__((noreturn)) void setup() {
     InitialiseSystem();
     if(StartWiFi() == WL_CONNECTED && SetupTime() == true) {
         bool WakeUp = false;
@@ -224,11 +251,12 @@ void setup() {
             client.setCACert(caCertOWM);
             while((RxWeather == false || RxForecast == false) && Attempts <= 2) {
                 if(RxWeather == false)
-                    RxWeather = obtainWeatherData(client, "onecall");
+                    RxWeather = obtainWeatherData(client, false);
                 if(RxForecast == false)
-                    RxForecast = obtainWeatherData(client, "forecast");
+                    RxForecast = obtainWeatherData(client);
                 Attempts++;
             }
+            client.stop();
             log_i("Received all weather data...");
             if(RxWeather && RxForecast) {
                 StopWiFi();
@@ -356,21 +384,20 @@ String ConvertUnixTime(int unix_time) {
     return output;
 }
 
-bool obtainWeatherData(WiFiClient &client, const bool forecast) {
+bool obtainWeatherData(WiFiClient &client, const bool forecast, const bool keepAlive) {
     constexpr const char *units = (Metric ? "metric" : "imperial");
     const String forecastRequest = String("/data/2.5/forecast?lat=") + Latitude + "&lon=" + Longitude
         + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
-    const String oncallRequest = String("/data/2.5/forecast?lat=") + Latitude + "&lon=" + Longitude
+    const String oncallRequest = String("/data/2.5/onecall?lat=") + Latitude + "&lon=" + Longitude
         + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language
         + "&exclude=minutely,hourly,alerts,daily";
 
     bool ret = true;
-    client.stop();
-    HTTPClient http;
+    http.setReuse(keepAlive);
 
     const char *uri = (forecast) ? forecastRequest.c_str() : oncallRequest.c_str();
     log_v("HTTPS request: %s", uri);
-    http.begin(client, server, 443, uri);
+    http.begin(client, server, 443, uri, true);
     int httpCode = http.GET();
     if(httpCode == HTTP_CODE_OK) {
         ret = DecodeWeather(http.getStream(), forecast);
@@ -378,8 +405,8 @@ bool obtainWeatherData(WiFiClient &client, const bool forecast) {
         log_e("connection failed, error: %s (%d)", http.errorToString(httpCode).c_str(), httpCode);
         ret = false;
     }
-    client.stop();
     http.end();
+
     return ret;
 }
 
@@ -715,8 +742,8 @@ void DisplayGraphSection(int x, int y) {
         r++;
     } while(r < max_readings);
     int gwidth = 175, gheight = 100;
-    int gx = (SCREEN_WIDTH - gwidth * 4) / 5 + 8;
-    int gy = (SCREEN_HEIGHT - gheight - 30);
+    int gx = (screenWidth - gwidth * 4) / 5 + 8;
+    int gy = (screenHeight - gheight - 30);
     int gap = gwidth + gx;
 
     DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Metric ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN,
@@ -739,7 +766,7 @@ void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
     if(IconName.endsWith("n"))
         addmoon(x, y, IconSize);
 
-    IconName = IconName.substring(0, 1);
+    IconName = IconName.substring(0, 2);
 
     if(IconName == "01")
         ClearSky(x, y, IconSize);
@@ -826,7 +853,7 @@ void DrawRSSI(int x, int y, int rssi) {
     }
 }
 
-boolean UpdateLocalTime() {
+bool UpdateLocalTime() {
     char time_output[30], day_output[30];
     while(!getLocalTime(&timeinfo, 5000)) {
         log_e("Failed to obtain time");
@@ -1105,7 +1132,7 @@ void DrawUVI(int x, int y) {
 }
 
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title,
-               float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
+               float DataArray[], int readings, bool auto_scale, bool barchart_mode) {
     constexpr float auto_scale_margin = 0.00;
     constexpr int y_minor_axis = 5;
     constexpr int number_of_dashes = 20;

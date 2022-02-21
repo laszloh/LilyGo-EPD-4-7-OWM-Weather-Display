@@ -429,10 +429,11 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=50204",
+                "PLATFORMIO=50205",
                 "ARDUINO_ESP32_DEV",
-                "CORE_DEBUG_LEVEL=6",
+                "CORE_DEBUG_LEVEL=4",
                 "USE_ESP_IDF_GPIO",
+                "BOARD_HAS_PSRAM=1",
                 "HAVE_CONFIG_H",
                 "MBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",
                 "UNITY_INCLUDE_CONFIG_H",
@@ -447,7 +448,6 @@
                 "ARDUINO_VARIANT=\"esp32\"",
                 "ARDUINO_BOARD=\"Espressif ESP32 Dev Module\"",
                 "ARDUINO_PARTITION_default_16MB",
-                "__PLATFORMIO_BUILD_DEBUG__",
                 ""
             ],
             "cStandard": "c99",
