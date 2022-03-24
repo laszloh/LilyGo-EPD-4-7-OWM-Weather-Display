@@ -28,11 +28,10 @@ constexpr bool LargeIcon = true;
 constexpr bool SmallIcon = false;
 constexpr int Large = 20;
 constexpr int Small = 10;
-String Time_str = "--:--:--";
-String Date_str = "-- --- ----";
+
 int wifi_signal;
 int vref = 1100;
-struct tm timeinfo;
+struct tm timeinfo RTC_DATA_ATTR;
 
 constexpr int max_readings = 24;
 
@@ -93,16 +92,16 @@ void DisplayGeneralInfoSection();
 void DisplayWeatherIcon(int x, int y);
 void DisplayMainWeatherSection(int x, int y);
 void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int Cradius);
-String WindDegToOrdinalDirection(float winddirection);
+constexpr const char *WindDegToOrdinalDirection(float winddirection);
 void DisplayTempHumiPressSection(int x, int y);
 void DisplayForecastTextSection(int x, int y);
 void DisplayVisiCCoverUVISection(int x, int y);
 void Display_UVIndexLevel(int x, int y, float UVI);
 void DisplayForecastWeather(int x, int y, int index, int fwidth);
-double NormalizedMoonPhase(int d, int m, int y);
+constexpr double NormalizedMoonPhase(int d, int m, int y);
 void DisplayAstronomySection(int x, int y);
 void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, bool northenHemisphere);
-String MoonPhase(int d, int m, int y, bool northenHemisphere);
+constexpr const char *MoonPhase(int d, int m, int y, bool northenHemisphere);
 void DisplayForecastSection(int x, int y);
 void DisplayGraphSection(int x, int y);
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize);
@@ -111,7 +110,8 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 void DrawPressureAndTrend(int x, int y, float pressure, PressureTrend slope);
 void DisplayStatusSection(int x, int y, int rssi);
 void DrawRSSI(int x, int y, int rssi);
-bool UpdateLocalTime();
+String getDateString();
+String getTimeString();
 void DrawBattery(int x, int y);
 void addcloud(int x, int y, int scale, int linesize);
 void addrain(int x, int y, int scale, bool IconSize);
@@ -168,8 +168,12 @@ bool SetupTime() {
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer, "time.nist.gov");
     setenv("TZ", Timezone, 1);
     tzset();
-    delay(100);
-    return UpdateLocalTime();
+
+    if(!getLocalTime(&timeinfo)) {
+        log_e("Failed to obtain time");
+        return false;
+    }
+    return true;
 }
 
 uint8_t StartWiFi() {
@@ -180,17 +184,13 @@ uint8_t StartWiFi() {
     WiFi.setAutoConnect(true);
     WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, password);
-    if(WiFi.waitForConnectResult() != WL_CONNECTED) {
-        log_e("STA: Failed!");
-        WiFi.disconnect(false);
-        delay(500);
-        WiFi.begin(ssid, password);
-    }
-    if(WiFi.status() == WL_CONNECTED) {
-        wifi_signal = WiFi.RSSI();
-        log_i("WiFi connected at: %s", WiFi.localIP().toString().c_str());
-    } else
+    if(WiFi.waitForConnectResult(5000) != WL_CONNECTED) {
         log_e("WiFi connection *** FAILED ***");
+        WiFi.disconnect(true);
+        return WiFi.status();
+    }
+    wifi_signal = WiFi.RSSI();
+    log_i("WiFi connected at: %s", WiFi.localIP().toString().c_str());
     return WiFi.status();
 }
 
@@ -460,7 +460,7 @@ void DisplayGeneralInfoSection() {
     setFont(OpenSans10B);
     drawString(5, 2, City, Alignment::LEFT);
     setFont(OpenSans8B);
-    drawString(500, 2, Date_str + "  @   " + Time_str, Alignment::LEFT);
+    drawString(500, 2, getDateString() + " @ " + getTimeString(), Alignment::LEFT);
 }
 
 void DisplayWeatherIcon(int x, int y) { DisplayConditionsSection(x, y, WxConditions.Icon, LargeIcon); }
@@ -512,7 +512,7 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
     drawString(x, y + 25, (Metric ? "m/s" : "mph"), Alignment::CENTER);
 }
 
-String WindDegToOrdinalDirection(float winddirection) {
+constexpr const char *WindDegToOrdinalDirection(float winddirection) {
     if(winddirection >= 348.75 || winddirection < 11.25)
         return TXT_N;
     if(winddirection >= 11.25 && winddirection < 33.75)
@@ -628,7 +628,7 @@ void DisplayForecastWeather(int x, int y, int index, int fwidth) {
                Alignment::CENTER);
 }
 
-double NormalizedMoonPhase(int d, int m, int y) {
+constexpr double NormalizedMoonPhase(int d, int m, int y) {
     int j = JulianDate(d, m, y);
 
     double Phase = (j + 4.867) / 29.53059;
@@ -685,20 +685,17 @@ void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, bool northenHe
     drawCircle(x + diameter - 1, y + diameter, diameter / 2, Color::Grey);
 }
 
-String MoonPhase(int d, int m, int y, bool northenHemisphere) {
-    int c, e;
-    double jd;
-    int b;
+constexpr const char *MoonPhase(int d, int m, int y, bool northenHemisphere) {
     if(m < 3) {
         y--;
         m += 12;
     }
     ++m;
-    c = 365.25 * y;
-    e = 30.6 * m;
-    jd = c + e + d - 694039.09;
+    int c = 365.25 * y;
+    int e = 30.6 * m;
+    double jd = c + e + d - 694039.09;
     jd /= 29.53059;
-    b = jd;
+    int b = jd;
     jd -= b;
     b = jd * 8 + 0.5;
     b = b & 7;
@@ -853,26 +850,22 @@ void DrawRSSI(int x, int y, int rssi) {
     }
 }
 
-bool UpdateLocalTime() {
-    char time_output[30], day_output[30];
-    while(!getLocalTime(&timeinfo, 5000)) {
-        log_e("Failed to obtain time");
-        return false;
-    }
+String getDateString() {
+    constexpr const char *metricDate = "%s, %02u %s %04u";
+    constexpr const char *imperialDate = "%a %b-%d-%Y";
 
     char buf[64];
-    strftime(buf, 64, "%a %b %d %Y   %H:%M:%S", &timeinfo);
-    if(Metric) {
-        sprintf(day_output, "%s, %02u %s %04u", weekday_D[timeinfo.tm_wday], timeinfo.tm_mday,
-                month_M[timeinfo.tm_mon], (timeinfo.tm_year) + 1900);
-        strftime(time_output, sizeof(time_output), "%H:%M:%S", &timeinfo);
-    } else {
-        strftime(day_output, sizeof(day_output), "%a %b-%d-%Y", &timeinfo);
-        strftime(time_output, sizeof(time_output), "%r", &timeinfo);
-    }
-    Date_str = day_output;
-    Time_str = time_output;
-    return true;
+    strftime(buf, sizeof(buf), (Metric) ? metricDate : imperialDate, &timeinfo);
+    return buf;
+}
+
+String getTimeString() {
+    constexpr const char *metricTime = "%H:%M:%S";
+    constexpr const char *imperialTime = "%r";
+
+    char buf[64];
+    strftime(buf, sizeof(buf), (Metric) ? metricTime : imperialTime, &timeinfo);
+    return buf;
 }
 
 void DrawBattery(int x, int y) {
